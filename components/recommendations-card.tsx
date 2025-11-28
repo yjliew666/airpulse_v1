@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Heart, AlertTriangle, CheckCircle, XCircle } from "lucide-react"
 import { useEffect, useState } from "react"
+import { useAirData } from "@/components/data-content"
 
 interface Recommendation {
   riskLevel: "Low" | "Mid" | "High"
@@ -14,6 +15,8 @@ interface Recommendation {
 }
 
 export function RecommendationsCard() {
+  const { latest } = useAirData()
+
   const [recommendation, setRecommendation] = useState<Recommendation>({
     riskLevel: "Low",
     dos: ["Continue outdoor activities", "Keep windows open for ventilation", "Take regular walks"],
@@ -22,45 +25,103 @@ export function RecommendationsCard() {
     protectiveActions: ["Stay hydrated", "Monitor air quality updates"],
   })
 
+  // Decide risk level based on latest readings
+  const computeRisk = () => {
+    if (!latest) return "Low" as const
+
+    // Prefer risk level computed by backend if available
+    if (latest.risk_level) {
+      const rl = latest.risk_level
+      if (rl === "High") return "High" as const
+      if (rl === "Mid") return "Mid" as const
+      return "Low" as const
+    }
+
+    const pm25 = typeof latest.pm25 === "number" ? latest.pm25 : 0
+    const voc = typeof latest.voc === "number" ? latest.voc : 0
+    const co = typeof latest.co === "number" ? latest.co : 0
+
+    // Very simple heuristic – fallback if backend doesn't provide risk_level
+    let score = 0
+
+    // PM2.5 weight
+    if (pm25 > 35.4) score += 2
+    else if (pm25 > 12) score += 1
+
+    // VOC weight
+    if (voc > 0.9) score += 2
+    else if (voc > 0.3) score += 1
+
+    // CO weight
+    if (co > 9.4) score += 2
+    else if (co > 4.4) score += 1
+
+    if (score >= 3) return "High" as const
+    if (score >= 1) return "Mid" as const
+    return "Low" as const
+  }
+
   useEffect(() => {
-    // Simulate AI-based recommendations based on user profile and AQI
-    const interval = setInterval(() => {
-      const riskLevels: ("Low" | "Mid" | "High")[] = ["Low", "Mid", "High"]
-      const newRisk = riskLevels[Math.floor(Math.random() * 3)]
+    const newRisk = computeRisk()
 
-      let newRecommendation: Recommendation
+    let newRecommendation: Recommendation
 
-      if (newRisk === "High") {
-        newRecommendation = {
-          riskLevel: "High",
-          dos: ["Stay indoors as much as possible", "Use air purifiers", "Keep windows closed"],
-          donts: ["Avoid outdoor exercise", "Don't open windows", "Avoid prolonged outdoor exposure"],
-          activities: ["Indoor yoga", "Home workouts", "Reading"],
-          protectiveActions: ["Wear N95 masks outdoors", "Use inhaler if prescribed", "Monitor symptoms"],
-        }
-      } else if (newRisk === "Mid") {
-        newRecommendation = {
-          riskLevel: "Mid",
-          dos: ["Limit outdoor activities", "Wear masks during commute", "Check AQI regularly"],
-          donts: ["Avoid intense outdoor exercise", "Don't ignore respiratory symptoms"],
-          activities: ["Light walking", "Indoor activities", "Short outdoor tasks"],
-          protectiveActions: ["Carry rescue inhaler", "Stay hydrated", "Monitor breathing"],
-        }
-      } else {
-        newRecommendation = {
-          riskLevel: "Low",
-          dos: ["Enjoy outdoor activities", "Keep windows open", "Take regular walks"],
-          donts: ["Don't worry about air quality", "No need for masks"],
-          activities: ["Jogging", "Cycling", "Outdoor sports"],
-          protectiveActions: ["Stay hydrated", "Monitor updates"],
-        }
+    if (newRisk === "High") {
+      newRecommendation = {
+        riskLevel: "High",
+        dos: [
+          "Stay indoors as much as possible",
+          "Use air purifiers with HEPA filters",
+          "Keep windows and doors closed",
+        ],
+        donts: [
+          "Avoid outdoor exercise",
+          "Don't open windows during peak pollution hours",
+          "Avoid prolonged outdoor exposure",
+        ],
+        activities: ["Indoor yoga", "Home workouts", "Reading", "Meditation"],
+        protectiveActions: [
+          "Wear N95 masks outdoors",
+          "Use inhaler if prescribed",
+          "Monitor symptoms closely",
+          "Check AQI before going out",
+        ],
       }
+    } else if (newRisk === "Mid") {
+      newRecommendation = {
+        riskLevel: "Mid",
+        dos: [
+          "Limit outdoor activities to shorter durations",
+          "Wear masks during commute or cycling",
+          "Check AQI regularly before going out",
+        ],
+        donts: [
+          "Avoid intense outdoor exercise",
+          "Don't ignore coughing or breathing discomfort",
+        ],
+        activities: ["Light walking", "Indoor activities", "Short outdoor tasks in lower AQI hours"],
+        protectiveActions: [
+          "Carry rescue inhaler if you have asthma",
+          "Stay hydrated",
+          "Keep windows partially closed during bad hours",
+        ],
+      }
+    } else {
+      newRecommendation = {
+        riskLevel: "Low",
+        dos: [
+          "Enjoy outdoor activities",
+          "Keep windows open for fresh air",
+          "Take regular walks or cycle",
+        ],
+        donts: ["Don't worry too much about air quality today", "No need for masks in most areas"],
+        activities: ["Jogging", "Cycling", "Outdoor sports", "Picnics"],
+        protectiveActions: ["Stay hydrated", "Glance at AQI updates if you are sensitive"],
+      }
+    }
 
-      setRecommendation(newRecommendation)
-    }, 12000)
-
-    return () => clearInterval(interval)
-  }, [])
+    setRecommendation(newRecommendation)
+  }, [latest]) // re-run whenever latest sensor data changes
 
   const getRiskColor = (risk: string) => {
     switch (risk) {
@@ -84,13 +145,17 @@ export function RecommendationsCard() {
         </CardTitle>
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Based on: Asthma, Cyclist</span>
+          <span className="text-sm text-muted-foreground">
+            Based on: Live air quality & profile (Asthma, Cyclist)
+          </span>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Risk Level:</span>
-          <Badge className={getRiskColor(recommendation.riskLevel)}>{recommendation.riskLevel}</Badge>
+          <Badge className={getRiskColor(recommendation.riskLevel)}>
+            {recommendation.riskLevel}
+          </Badge>
         </div>
 
         <div className="space-y-3">
@@ -139,7 +204,11 @@ export function RecommendationsCard() {
             <h4 className="font-medium text-sm text-foreground mb-2">Protective Actions</h4>
             <div className="flex flex-wrap gap-2">
               {recommendation.protectiveActions.map((action, index) => (
-                <Badge key={index} variant="outline" className="text-xs bg-secondary/10 text-secondary">
+                <Badge
+                  key={index}
+                  variant="outline"
+                  className="text-xs bg-secondary/10 text-secondary"
+                >
                   {action}
                 </Badge>
               ))}

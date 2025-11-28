@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge"
 import { X } from "lucide-react"
 import { useState } from "react"
 
-interface UserProfile {
+// 👇 Export this so ProfilePage can import it
+export interface UserProfile {
   username: string
   occupation: string
   healthConditions: string[]
@@ -23,7 +24,15 @@ interface UserProfile {
   }
 }
 
-interface EditProfileModalProps {
+// Local form state shape
+interface EditFormState {
+  username: string
+  occupation: string
+  healthConditions: string[]
+  newCondition: string
+}
+
+export interface EditProfileModalProps {
   isOpen: boolean
   onClose: () => void
   profile: UserProfile
@@ -31,15 +40,24 @@ interface EditProfileModalProps {
 }
 
 export function EditProfileModal({ isOpen, onClose, profile, onSave }: EditProfileModalProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<EditFormState>({
     username: profile.username,
     occupation: profile.occupation,
     healthConditions: profile.healthConditions,
     newCondition: "",
   })
 
-  const occupations = ["Cyclist", "Runner", "Farmer", "Construction Worker", "Office Worker", "Student", "Other"]
-  const commonConditions = ["Asthma", "COPD", "Allergies", "Heart Disease", "None"]
+  const occupations: string[] = [
+    "Cyclist",
+    "Runner",
+    "Farmer",
+    "Construction Worker",
+    "Office Worker",
+    "Student",
+    "Other",
+  ]
+
+  const commonConditions: string[] = ["Asthma", "COPD", "Allergies", "Heart Disease", "None"]
 
   const handleSave = () => {
     onSave({
@@ -53,7 +71,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onSave }: EditProfi
 
   const addHealthCondition = (condition: string) => {
     if (!formData.healthConditions.includes(condition)) {
-      setFormData((prev) => ({
+      setFormData((prev: EditFormState) => ({
         ...prev,
         healthConditions: [...prev.healthConditions, condition],
       }))
@@ -61,9 +79,9 @@ export function EditProfileModal({ isOpen, onClose, profile, onSave }: EditProfi
   }
 
   const removeHealthCondition = (condition: string) => {
-    setFormData((prev) => ({
+    setFormData((prev: EditFormState) => ({
       ...prev,
-      healthConditions: prev.healthConditions.filter((c) => c !== condition),
+      healthConditions: prev.healthConditions.filter((c: string) => c !== condition),
     }))
   }
 
@@ -80,7 +98,9 @@ export function EditProfileModal({ isOpen, onClose, profile, onSave }: EditProfi
             <Input
               id="username"
               value={formData.username}
-              onChange={(e) => setFormData((prev) => ({ ...prev, username: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev: EditFormState) => ({ ...prev, username: e.target.value }))
+              }
               className="mt-1"
             />
           </div>
@@ -88,12 +108,14 @@ export function EditProfileModal({ isOpen, onClose, profile, onSave }: EditProfi
           <div>
             <Label>Occupation</Label>
             <div className="flex flex-wrap gap-2 mt-2">
-              {occupations.map((occupation) => (
+              {occupations.map((occupation: string) => (
                 <Button
                   key={occupation}
                   variant={formData.occupation === occupation ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setFormData((prev) => ({ ...prev, occupation }))}
+                  onClick={() =>
+                    setFormData((prev: EditFormState) => ({ ...prev, occupation }))
+                  }
                 >
                   {occupation}
                 </Button>
@@ -104,10 +126,17 @@ export function EditProfileModal({ isOpen, onClose, profile, onSave }: EditProfi
           <div>
             <Label>Health Conditions</Label>
             <div className="flex flex-wrap gap-2 mt-2 mb-2">
-              {formData.healthConditions.map((condition) => (
-                <Badge key={condition} variant="outline" className="bg-danger/10 text-danger">
+              {formData.healthConditions.map((condition: string) => (
+                <Badge
+                  key={condition}
+                  variant="outline"
+                  className="bg-danger/10 text-danger"
+                >
                   {condition}
-                  <button onClick={() => removeHealthCondition(condition)} className="ml-1 hover:text-danger/80">
+                  <button
+                    onClick={() => removeHealthCondition(condition)}
+                    className="ml-1 hover:text-danger/80"
+                  >
                     <X className="h-3 w-3" />
                   </button>
                 </Badge>
@@ -115,9 +144,14 @@ export function EditProfileModal({ isOpen, onClose, profile, onSave }: EditProfi
             </div>
             <div className="flex flex-wrap gap-2">
               {commonConditions
-                .filter((condition) => !formData.healthConditions.includes(condition))
-                .map((condition) => (
-                  <Button key={condition} variant="outline" size="sm" onClick={() => addHealthCondition(condition)}>
+                .filter((condition: string) => !formData.healthConditions.includes(condition))
+                .map((condition: string) => (
+                  <Button
+                    key={condition}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addHealthCondition(condition)}
+                  >
                     + {condition}
                   </Button>
                 ))}
@@ -128,7 +162,11 @@ export function EditProfileModal({ isOpen, onClose, profile, onSave }: EditProfi
             <Button onClick={handleSave} className="flex-1">
               Save Changes
             </Button>
-            <Button variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="flex-1 bg-transparent"
+            >
               Cancel
             </Button>
           </div>

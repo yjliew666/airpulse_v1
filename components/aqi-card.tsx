@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Wind } from "lucide-react"
 import { useEffect, useState } from "react"
+import { useAirData } from "@/components/data-content"
 
 interface AQIData {
   value: number
@@ -13,38 +14,41 @@ interface AQIData {
 }
 
 export function AQICard() {
+  const { latest } = useAirData()
+
   const [aqiData, setAqiData] = useState<AQIData>({
-    value: 42,
-    status: "Good",
-    color: "bg-accent",
-    location: "Downtown Sensor #1",
+    value: 0,
+    status: "No data",
+    color: "bg-muted",
+    location: "Unknown location",
   })
 
+  // Use AQI fields returned from the API when available
   useEffect(() => {
-    // Simulate real-time AQI updates
-    const interval = setInterval(() => {
-      const value = Math.floor(Math.random() * 150) + 10
-      let status = "Good"
-      let color = "bg-accent"
+    if (!latest) return
 
-      if (value > 100) {
-        status = "Unhealthy"
-        color = "bg-danger"
-      } else if (value > 50) {
-        status = "Moderate"
-        color = "bg-warning"
-      }
+    const value = latest.aqi ?? 0
+    const status = latest.aqi_category ?? (value > 0 ? "Unknown" : "No data")
 
-      setAqiData({
-        value,
-        status,
-        color,
-        location: "Downtown Sensor #1",
-      })
-    }, 5000)
+    // Map category -> color
+    let color = "bg-muted"
+    if (status === "Good") color = "bg-accent"
+    else if (status === "Moderate") color = "bg-warning"
+    else if (status === "Unhealthy for Sensitive Groups") color = "bg-warning"
+    else if (status === "Unhealthy") color = "bg-danger"
+    else if (status === "Very Unhealthy" || status === "Hazardous") color = "bg-danger"
 
-    return () => clearInterval(interval)
-  }, [])
+    const location = latest.devices?.location ?? latest.devices?.name ?? "Unknown location"
+
+    setAqiData({
+      value: value ?? 0,
+      status,
+      color,
+      location,
+    })
+  }, [latest])
+
+  const hasData = aqiData.value > 0 || aqiData.status !== "No data"
 
   return (
     <Card className="shadow-soft">
@@ -56,18 +60,37 @@ export function AQICard() {
       </CardHeader>
       <CardContent>
         <div className="text-center space-y-4">
-          <div className={`inline-flex items-center justify-center w-24 h-24 rounded-full ${aqiData.color} text-white`}>
-            <span className="text-2xl font-bold">{aqiData.value}</span>
+          <div
+            className={`inline-flex items-center justify-center w-24 h-24 rounded-full ${
+              hasData ? aqiData.color : "bg-muted"
+            } text-white`}
+          >
+            <span className="text-2xl font-bold">
+              {hasData ? aqiData.value : "--"}
+            </span>
           </div>
           <div>
             <p className="text-lg font-semibold text-foreground">
-              AQI is {aqiData.value}, within the range of{" "}
-              <Badge variant="outline" className={`${aqiData.color} text-white border-0`}>
-                {aqiData.status}
-              </Badge>
+              {hasData ? (
+                <>
+                  AQI is {aqiData.value}, within the range of{" "}
+                  <Badge
+                    variant="outline"
+                    className={`${aqiData.color} text-white border-0`}
+                  >
+                    {aqiData.status}
+                  </Badge>
+                </>
+              ) : (
+                "Waiting for sensor data…"
+              )}
             </p>
-            <p className="text-sm text-muted-foreground mt-1">based on WHO guideline</p>
-            <p className="text-xs text-muted-foreground mt-2">📍 {aqiData.location}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              based on WHO guideline
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              📍 {aqiData.location}
+            </p>
           </div>
         </div>
       </CardContent>

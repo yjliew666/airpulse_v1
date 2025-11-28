@@ -26,82 +26,57 @@ export function PollutantTrendChart({
   riskLevel,
 }: PollutantTrendChartProps) {
   const [data, setData] = useState<DataPoint[]>([])
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    // Generate 24 hours of realistic data
-    const generateTrendData = () => {
-      const points: DataPoint[] = []
-      const now = Date.now()
+    const fetchTrendData = async () => {
+      try {
+        const res = await fetch(`/api/sensors?deviceId=${encodeURIComponent(sensorId)}`)
+        const json = await res.json()
 
-      // Base values for different pollutants
-      const pollutantBases: { [key: string]: number } = {
-        "PM2.5": 18,
-        PM10: 32,
-        "O₃": 45,
-        "NO₂": 25,
-        "SO₂": 12,
-        CO: 0.8,
-        Mold: 3,
-      }
-
-      const baseValue = pollutantBases[pollutant] || 25
-      const sensorMultiplier = (Number.parseInt(sensorId.split("_")[1]) || 1) * 0.2
-
-      for (let i = 23; i >= 0; i--) {
-        const timestamp = now - i * 60 * 60 * 1000
-        const date = new Date(timestamp)
-        const hour = date.getHours()
-
-        // Create realistic patterns
-        let multiplier = 1
-
-        // Rush hour peaks (7-9 AM, 5-7 PM)
-        if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
-          multiplier = 1.4
-        }
-        // Night reduction (10 PM - 6 AM)
-        else if (hour >= 22 || hour <= 6) {
-          multiplier = 0.6
+        if (!Array.isArray(json)) {
+          console.error("Unexpected /api/sensors response for trend chart:", json)
+          return
         }
 
-        // Add some randomness and sensor-specific variation
-        const variation = (Math.random() - 0.5) * 10
-        const sensorVariation = Math.sin(i / 6 + sensorMultiplier) * 8
+        // Map pollutant label to backend field
+        const fieldMap: Record<string, "pm25" | "voc" | "co"> = {
+          "PM2.5": "pm25",
+          CO: "co",
+          VOC: "voc",
+        }
 
-        const finalValue = Math.max(1, baseValue * multiplier + variation + sensorVariation)
+        const field = fieldMap[pollutant] || "pm25"
 
-        points.push({
-          time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          value: Number(finalValue.toFixed(1)),
-          timestamp,
-        })
+        const points: DataPoint[] = json
+          .map((reading: any) => {
+            const createdAt = new Date(reading.created_at)
+            const value = Number(reading[field] ?? 0)
+
+            return {
+              time: createdAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              value,
+              timestamp: createdAt.getTime(),
+            } as DataPoint
+          })
+          // Oldest first for chart
+          .sort((a, b) => a.timestamp - b.timestamp)
+
+        setData(points)
+      } catch (e) {
+        console.error("Failed to fetch trend data:", e)
+      } finally {
+        setLoaded(true)
       }
-
-      return points
     }
 
-    setData(generateTrendData())
+    fetchTrendData()
+  }, [pollutant, sensorId])
 
-    // Update data every 30 seconds
-    const interval = setInterval(() => {
-      setData((prevData) => {
-        const newData = [...prevData.slice(1)]
-        const lastValue = prevData[prevData.length - 1]?.value || currentValue
-        const variation = (Math.random() - 0.5) * 6
-        const newValue = Math.max(1, lastValue + variation)
-
-        newData.push({
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          value: Number(newValue.toFixed(1)),
-          timestamp: Date.now(),
-        })
-
-        return newData
-      })
-    }, 30000)
-
-    return () => clearInterval(interval)
-  }, [pollutant, sensorId, currentValue])
+  // If we've loaded from Supabase and there are no points, don't render anything
+  if (loaded && data.length === 0) {
+    return null
+  }
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -150,6 +125,11 @@ export function PollutantTrendChart({
   const maximum = data.length > 0 ? Math.max(...data.map((point) => point.value)) : 0
   const minimum = data.length > 0 ? Math.min(...data.map((point) => point.value)) : 0
 
+  // Integer tick values for Y axis (min, mid, max) with constant spacing
+  const minTick = Math.floor(minimum)
+  const maxTick = Math.ceil(maximum)
+  const midTick = Math.round((minTick + maxTick) / 2)
+
   // Get risk color for the line
   const getLineColor = () => {
     switch (riskLevel) {
@@ -196,7 +176,14 @@ export function PollutantTrendChart({
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" opacity={0.5} />
             <XAxis dataKey="time" stroke="#6B7280" fontSize={11} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-            <YAxis stroke="#6B7280" fontSize={11} tick={{ fontSize: 11 }} domain={["dataMin - 5", "dataMax + 5"]} />
+            <YAxis
+              stroke="#6B7280"
+              fontSize={11}
+              tick={{ fontSize: 11 }}
+              allowDecimals={false}
+              domain={[minTick, maxTick]}
+              ticks={[minTick, midTick, maxTick]}
+            />
             <Tooltip content={<CustomTooltip />} />
             <Line
               type="monotone"

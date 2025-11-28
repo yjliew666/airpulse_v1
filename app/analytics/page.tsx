@@ -6,21 +6,112 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, BarChart3, Smartphone, Radio, MapPin, Wifi, WifiOff } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
-import { useSensors } from "@/components/sensors-provider"
+import { useEffect, useMemo, useState } from "react"
+import { AirDataProvider, useAirData } from "@/components/data-content"
+import type { Sensor } from "@/components/sensors-provider"
 import { WellnessReportSection } from "@/components/wellness-report-section"
 import { PollutantTrendChart } from "@/components/pollutant-trend-chart"
 
 export default function AnalyticsPage() {
-  const { sensors } = useSensors()
+  return (
+    <AirDataProvider>
+      <AnalyticsContent />
+    </AirDataProvider>
+  )
+}
+
+function AnalyticsContent() {
+  const { readings } = useAirData()
+
+  // All devices from backend (via /api/sensors?resource=devices)
+  const [devices, setDevices] = useState<
+    { id: string; name: string; location: string; sensor_type: "mobile" | "static"; created_at: string }[]
+  >([])
+
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const res = await fetch("/api/sensors?resource=devices")
+        const json = await res.json()
+        if (Array.isArray(json)) {
+          setDevices(json)
+        } else {
+          console.error("Unexpected devices response:", json)
+        }
+      } catch (e) {
+        console.error("Failed to fetch devices:", e)
+      }
+    }
+
+    fetchDevices()
+  }, [])
+
+  // Map devices + their latest reading into the Sensor shape used by analytics components
+  const sensors: Sensor[] = useMemo(() => {
+    return devices.map((device) => {
+      // 🔍 all readings for this device_id
+      const deviceReadings = readings.filter((r) => String(r.device_id) === device.id)
+
+      const latestReading =
+        deviceReadings.length > 0
+          ? deviceReadings.reduce((latest, r) =>
+              new Date(r.created_at) > new Date(latest.created_at) ? r : latest,
+            deviceReadings[0])
+          : null
+
+      const pm25 = latestReading?.pm25 ?? 0
+      const co = latestReading?.co ?? 0
+      const voc = latestReading?.voc ?? 0
+
+      // Prefer the AQI value computed/stored in the readings table
+      const aqiValue = latestReading?.aqi ?? pm25 ?? 0
+
+      let status: Sensor["status"] = "Good"
+      if (aqiValue > 100) status = "Unhealthy"
+      else if (aqiValue > 50) status = "Moderate"
+
+      return {
+        id: device.id,
+        type: device.sensor_type,
+        name: device.name,
+        location: device.location,
+        lat: 0,
+        lng: 0,
+        aqi: aqiValue,
+        status,
+        lastUpdate: latestReading ? new Date(latestReading.created_at).toLocaleTimeString() : "No data",
+        isConnected: !!latestReading,
+        pollutants: {
+          SO2: 0,
+          PM10: 0,
+          PM25: pm25,
+          O3: 0,
+          NO2: 0,
+          CO: co,
+          VOC: voc,
+        },
+      }
+    })
+  }, [devices, readings])
+
   const [sensorType, setSensorType] = useState<"static" | "mobile">("static")
   const [selectedSensorId, setSelectedSensorId] = useState<string>("")
 
   // Filter sensors by type
   const filteredSensors = sensors.filter((sensor) => sensor.type === sensorType)
 
-  // Set default selected sensor when type changes
-  const selectedSensor = selectedSensorId ? sensors.find((s) => s.id === selectedSensorId) : filteredSensors[0]
+  // Currently selected sensor
+  const selectedSensor =
+    selectedSensorId ? sensors.find((s) => s.id === selectedSensorId) : filteredSensors[0]
+
+  // ✅ All readings that belong to the selected device_id
+  const selectedSensorReadings = useMemo(
+    () =>
+      selectedSensor
+        ? readings.filter((r) => String(r.device_id) === selectedSensor.id)
+        : [],
+    [selectedSensor, readings]
+  )
 
   // Update selected sensor when switching types
   const handleTypeChange = (type: "static" | "mobile") => {
@@ -33,21 +124,15 @@ export default function AnalyticsPage() {
     }
   }
 
-  const pollutantList =
-    selectedSensor?.type === "mobile"
-      ? ["PM2.5", "PM10", "O₃", "NO₂", "SO₂", "CO", "Mold"]
-      : ["PM2.5", "PM10", "O₃", "NO₂", "SO₂", "CO"]
+  // Only pollutants that actually have readings from Supabase
+  const pollutantList = ["PM2.5", "CO", "VOC"]
 
   const getPollutantValue = (pollutant: string) => {
     if (!selectedSensor) return 0
     const mapping: { [key: string]: keyof typeof selectedSensor.pollutants } = {
       "PM2.5": "PM25",
-      PM10: "PM10",
-      "O₃": "O3",
-      "NO₂": "NO2",
-      "SO₂": "SO2",
       CO: "CO",
-      Mold: "Mold",
+      VOC: "VOC",
     }
     return selectedSensor.pollutants[mapping[pollutant]] || 0
   }
@@ -56,12 +141,8 @@ export default function AnalyticsPage() {
     // Simplified risk assessment based on pollutant levels
     const thresholds: { [key: string]: { moderate: number; high: number } } = {
       "PM2.5": { moderate: 25, high: 50 },
-      PM10: { moderate: 50, high: 100 },
-      "O₃": { moderate: 60, high: 120 },
-      "NO₂": { moderate: 40, high: 80 },
-      "SO₂": { moderate: 20, high: 50 },
       CO: { moderate: 1.0, high: 2.0 },
-      Mold: { moderate: 5, high: 10 },
+      VOC: { moderate: 200, high: 400 },
     }
 
     const threshold = thresholds[pollutant]
@@ -185,7 +266,12 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="text-sm text-muted-foreground flex items-center gap-1">
                     <MapPin className="h-3 w-3" />
-                    {selectedSensor.location} • Last update: {selectedSensor.lastUpdate}
+                    {selectedSensor.location} • Last update:{" "}
+                    {selectedSensorReadings.length > 0
+                      ? new Date(
+                          selectedSensorReadings[selectedSensorReadings.length - 1].created_at
+                        ).toLocaleTimeString()
+                      : "No data"}
                   </div>
                 </div>
               )}
@@ -207,7 +293,14 @@ export default function AnalyticsPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-foreground">Pollutant Trends (24 Hours)</h2>
-              <div className="text-sm text-muted-foreground">Last updated: {selectedSensor.lastUpdate}</div>
+              <div className="text-sm text-muted-foreground">
+                Last updated:{" "}
+                {selectedSensorReadings.length > 0
+                  ? new Date(
+                      selectedSensorReadings[selectedSensorReadings.length - 1].created_at
+                    ).toLocaleTimeString()
+                  : "No data"}
+              </div>
             </div>
 
             {pollutantList.map((pollutant) => {
@@ -261,7 +354,14 @@ export default function AnalyticsPage() {
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>Sensor ID: {selectedSensor.id}</span>
                         <span>Location: {selectedSensor.location}</span>
-                        <span>Updated: {selectedSensor.lastUpdate}</span>
+                        <span>
+                          Updated:{" "}
+                          {selectedSensorReadings.length > 0
+                            ? new Date(
+                                selectedSensorReadings[selectedSensorReadings.length - 1].created_at
+                              ).toLocaleTimeString()
+                            : "No data"}
+                        </span>
                       </div>
                     </div>
                   </CardContent>

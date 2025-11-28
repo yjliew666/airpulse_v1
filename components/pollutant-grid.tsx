@@ -3,41 +3,79 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useEffect, useState } from "react"
+import { useAirData } from "@/components/data-content"
+
+type Status = "Good" | "Moderate" | "Unhealthy"
 
 interface Pollutant {
   name: string
   value: number
   unit: string
-  status: "Good" | "Moderate" | "Unhealthy"
+  status: Status
   icon: string
 }
 
 export function PollutantGrid() {
+  const { latest } = useAirData()
+
   const [pollutants, setPollutants] = useState<Pollutant[]>([
-    { name: "SO₂", value: 12, unit: "μg/m³", status: "Good", icon: "🌫️" },
-    { name: "PM10", value: 28, unit: "μg/m³", status: "Good", icon: "💨" },
-    { name: "PM2.5", value: 15, unit: "μg/m³", status: "Good", icon: "🌪️" },
-    { name: "O₃", value: 45, unit: "μg/m³", status: "Moderate", icon: "☀️" },
-    { name: "NO₂", value: 22, unit: "μg/m³", status: "Good", icon: "🚗" },
-    { name: "CO", value: 0.8, unit: "mg/m³", status: "Good", icon: "🏭" },
-    { name: "Mold", value: 3, unit: "spores/m³", status: "Good", icon: "🍄" },
+    { name: "PM2.5", value: 0, unit: "μg/m³", status: "Good", icon: "🌪️" },
+    { name: "VOC", value: 0, unit: "ppm", status: "Good", icon: "🧪" },
+    { name: "CO", value: 0, unit: "ppm", status: "Good", icon: "🏭" },
+    // you can add more static/placeholder ones if you have more sensors later:
+    // { name: "PM10", value: 0, unit: "μg/m³", status: "Good", icon: "💨" },
+    // { name: "O₃", value: 0, unit: "μg/m³", status: "Good", icon: "☀️" },
+    // { name: "NO₂", value: 0, unit: "μg/m³", status: "Good", icon: "🚗" },
   ])
 
+  // Helper to derive status from value
+  const computeStatus = (name: string, value: number): Status => {
+    // You can tweak these thresholds based on real AQI standards
+    switch (name) {
+      case "PM2.5":
+        if (value <= 12) return "Good"
+        if (value <= 35.4) return "Moderate"
+        return "Unhealthy"
+      case "VOC":
+        if (value <= 0.3) return "Good"
+        if (value <= 0.9) return "Moderate"
+        return "Unhealthy"
+      case "CO":
+        if (value <= 4.4) return "Good"
+        if (value <= 9.4) return "Moderate"
+        return "Unhealthy"
+      default:
+        return "Good"
+    }
+  }
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      setPollutants((prev) =>
-        prev.map((pollutant) => ({
+    if (!latest) return
+
+    setPollutants((prev) =>
+      prev.map((pollutant) => {
+        let newValue = pollutant.value
+
+        if (pollutant.name === "PM2.5" && typeof latest.pm25 === "number") {
+          newValue = latest.pm25
+        } else if (pollutant.name === "VOC" && typeof latest.voc === "number") {
+          newValue = latest.voc
+        } else if (pollutant.name === "CO" && typeof latest.co === "number") {
+          newValue = latest.co
+        }
+
+        const newStatus = computeStatus(pollutant.name, newValue)
+
+        return {
           ...pollutant,
-          value: Math.max(0, pollutant.value + (Math.random() - 0.5) * 5),
-          status: Math.random() > 0.8 ? "Moderate" : "Good",
-        })),
-      )
-    }, 8000)
+          value: newValue,
+          status: newStatus,
+        }
+      }),
+    )
+  }, [latest])
 
-    return () => clearInterval(interval)
-  }, [])
-
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: Status) => {
     switch (status) {
       case "Good":
         return "bg-accent text-accent-foreground"
@@ -59,11 +97,15 @@ export function PollutantGrid() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-2xl">{pollutant.icon}</span>
-                <Badge className={getStatusColor(pollutant.status)}>{pollutant.status}</Badge>
+                <Badge className={getStatusColor(pollutant.status)}>
+                  {pollutant.status}
+                </Badge>
               </div>
               <div>
                 <h3 className="font-semibold text-foreground">{pollutant.name}</h3>
-                <p className="text-lg font-bold text-primary">{pollutant.value.toFixed(1)}</p>
+                <p className="text-lg font-bold text-primary">
+                  {pollutant.value.toFixed(1)}
+                </p>
                 <p className="text-xs text-muted-foreground">{pollutant.unit}</p>
               </div>
             </CardContent>

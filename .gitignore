@@ -1,0 +1,107 @@
+# ---------------------------
+# Node / Next.js
+# ---------------------------
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# Next.js build artifacts
+.next.cache/
+.next/standalone/
+.next/server/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun-debug.log*
+debug.log
+
+# Environment Secrets (VERY IMPORTANT)
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.supabase
+
+# Local database files
+*.sqlite
+*.db
+
+# Static build folders used by Vercel or Next Export
+.vercel/
+.vercel_build_output/
+
+# typescript
+*.tsbuildinfo
+
+# ---------------------------
+# Supabase
+# ---------------------------
+supabase/.temp/
+supabase/.migrations/
+
+# Supabase local dev database
+supabase/volumes/*
+
+# ---------------------------
+# OS / Editor files
+# ---------------------------
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
+.history/
+
+# JetBrains
+.idea/
+
+# Misc cache
+.cache/
+*.cache
+
+# ---------------------------
+# ESP32 / IoT files
+# ---------------------------
+# PlatformIO
+.pio/
+
+# Arduino build files
+*.elf
+*.bin
+*.hex
+*.map
+
+# Temporary serial logs
+serial.log
+serial_output.txt
+
+# ---------------------------
+# Logs from your AirPulse client-side scripts
+# ---------------------------
+airpulse.log
+airpulse-debug.log
+
+# Temporary test files
+temp/
+tmp/
+*.tmp
+*.bak
+
+# ---------------------------
+# Ignore uploaded images, unless intentionally committed
+# ---------------------------
+public/uploads/
+uploads/
+
+# ---------------------------
+# Ignore local certificates
+# ---------------------------
+*.pem
+*.crt
+*.key

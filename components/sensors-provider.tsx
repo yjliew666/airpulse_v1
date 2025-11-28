@@ -21,6 +21,7 @@ export interface Sensor {
     O3: number
     NO2: number
     CO: number
+    VOC: number
     Mold?: number
   }
 }
@@ -48,7 +49,7 @@ export function SensorsProvider({ children }: { children: React.ReactNode }) {
       status: "Good",
       lastUpdate: "2 min ago",
       isConnected: true,
-      pollutants: { SO2: 12, PM10: 28, PM25: 15, O3: 45, NO2: 22, CO: 0.8 },
+      pollutants: { SO2: 12, PM10: 28, PM25: 15, O3: 45, NO2: 22, CO: 0.8, VOC: 200 },
     },
     {
       id: "STATIC_002",
@@ -61,7 +62,7 @@ export function SensorsProvider({ children }: { children: React.ReactNode }) {
       status: "Moderate",
       lastUpdate: "1 min ago",
       isConnected: true,
-      pollutants: { SO2: 25, PM10: 45, PM25: 28, O3: 78, NO2: 35, CO: 1.2 },
+      pollutants: { SO2: 25, PM10: 45, PM25: 28, O3: 78, NO2: 35, CO: 1.2, VOC: 260 },
     },
     {
       id: "STATIC_003",
@@ -74,7 +75,7 @@ export function SensorsProvider({ children }: { children: React.ReactNode }) {
       status: "Moderate",
       lastUpdate: "3 min ago",
       isConnected: true,
-      pollutants: { SO2: 35, PM10: 52, PM25: 32, O3: 65, NO2: 45, CO: 1.5 },
+      pollutants: { SO2: 35, PM10: 52, PM25: 32, O3: 65, NO2: 45, CO: 1.5, VOC: 300 },
     },
     {
       id: "MOBILE_001",
@@ -87,7 +88,7 @@ export function SensorsProvider({ children }: { children: React.ReactNode }) {
       status: "Good",
       lastUpdate: "30 sec ago",
       isConnected: true,
-      pollutants: { SO2: 8, PM10: 18, PM25: 12, O3: 32, NO2: 15, CO: 0.6, Mold: 3 },
+      pollutants: { SO2: 8, PM10: 18, PM25: 12, O3: 32, NO2: 15, CO: 0.6, VOC: 180, Mold: 3 },
     },
     {
       id: "MOBILE_002",
@@ -100,7 +101,7 @@ export function SensorsProvider({ children }: { children: React.ReactNode }) {
       status: "Moderate",
       lastUpdate: "1 min ago",
       isConnected: false,
-      pollutants: { SO2: 18, PM10: 32, PM25: 22, O3: 48, NO2: 28, CO: 0.9, Mold: 5 },
+      pollutants: { SO2: 18, PM10: 32, PM25: 22, O3: 48, NO2: 28, CO: 0.9, VOC: 220, Mold: 5 },
     },
   ])
 
@@ -131,6 +132,7 @@ export function SensorsProvider({ children }: { children: React.ReactNode }) {
               O3: Math.max(0, sensor.pollutants.O3 + (Math.random() - 0.5) * 6),
               NO2: Math.max(0, sensor.pollutants.NO2 + (Math.random() - 0.5) * 4),
               CO: Math.max(0, sensor.pollutants.CO + (Math.random() - 0.5) * 0.2),
+              VOC: Math.max(0, sensor.pollutants.VOC + (Math.random() - 0.5) * 10),
               ...(sensor.pollutants.Mold && {
                 Mold: Math.max(0, sensor.pollutants.Mold + (Math.random() - 0.5) * 1),
               }),
@@ -158,6 +160,7 @@ export function SensorsProvider({ children }: { children: React.ReactNode }) {
         O3: Math.random() * 80,
         NO2: Math.random() * 40,
         CO: Math.random() * 2,
+        VOC: Math.random() * 300,
         ...(newSensor.type === "mobile" && { Mold: Math.random() * 10 }),
       },
     }

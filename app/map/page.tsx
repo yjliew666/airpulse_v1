@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Radio, Smartphone } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
-import { useSensors } from "@/components/sensors-provider"
+import { useEffect, useMemo, useState } from "react"
+import { useAirData } from "@/components/data-content"
 
 interface Sensor {
   id: string
+  name: string
+  location: string
   type: "static" | "mobile"
   lat: number
   lng: number
@@ -24,9 +26,91 @@ interface Sensor {
   }
 }
 
+// Shape of rows returned from /api/sensors?resource=devices
+interface DeviceRow {
+  id: number
+  name: string
+  location: string
+  sensor_type: "mobile" | "static"
+  created_at: string
+}
+
 export default function MapPage() {
-  const { sensors } = useSensors()
-  const [selectedSensor, setSelectedSensor] = useState<any>(null)
+  const { readings } = useAirData()
+
+  const [devices, setDevices] = useState<DeviceRow[]>([])
+  const [selectedSensor, setSelectedSensor] = useState<Sensor | null>(null)
+
+  // Fetch all devices from backend
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const res = await fetch("/api/sensors?resource=devices")
+        const json = await res.json()
+        if (Array.isArray(json)) {
+          setDevices(json)
+        } else {
+          console.error("Unexpected devices response:", json)
+        }
+      } catch (e) {
+        console.error("Failed to fetch devices:", e)
+      }
+    }
+
+    fetchDevices()
+  }, [])
+
+  // Build Sensor[] by joining devices + latest reading per device
+  const sensors: Sensor[] = useMemo(() => {
+    return devices.map((device) => {
+      const deviceId = String(device.id)
+
+      const deviceReadings = readings.filter((r) => String(r.device_id) === deviceId)
+      const latestReading =
+        deviceReadings.length > 0
+          ? deviceReadings.reduce((latest, r) =>
+              new Date(r.created_at) > new Date(latest.created_at) ? r : latest,
+            deviceReadings[0])
+          : null
+
+      const pm25 = latestReading?.pm25 ?? 0
+      const aqiValue = latestReading?.aqi ?? pm25 ?? 0
+
+      // Map backend risk_level → simple 3-state status
+      let status: Sensor["status"] = "Good"
+      if (latestReading?.risk_level === "Mid") status = "Moderate"
+      if (latestReading?.risk_level === "High") status = "Unhealthy"
+
+      return {
+        id: deviceId,
+        name: device.name,
+        location: device.location,
+        type: device.sensor_type,
+        lat: 0, // placeholder until you add real coordinates
+        lng: 0,
+        aqi: aqiValue,
+        status,
+        lastUpdate: latestReading
+          ? new Date(latestReading.created_at).toLocaleTimeString()
+          : "No data",
+        pollutants: {
+          PM25: pm25,
+          PM10: 0,
+          O3: 0,
+          NO2: 0,
+        },
+      }
+    })
+  }, [devices, readings])
+
+  const getLatestReadingForSensor = (sensorId: string) => {
+    if (!readings || readings.length === 0) return null
+    const deviceReadings = readings.filter((r) => String(r.device_id) === sensorId)
+    if (deviceReadings.length === 0) return null
+    return deviceReadings.reduce((latest, r) =>
+      new Date(r.created_at) > new Date(latest.created_at) ? r : latest,
+    deviceReadings[0])
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -46,7 +130,11 @@ export default function MapPage() {
       <header className="bg-primary text-primary-foreground p-4 shadow-soft">
         <div className="flex items-center gap-3">
           <Link href="/">
-            <Button variant="ghost" size="sm" className="text-primary-foreground hover:bg-primary-foreground/20">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-primary-foreground hover:bg-primary-foreground/20"
+            >
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
@@ -62,11 +150,11 @@ export default function MapPage() {
         <Card className="shadow-soft">
           <CardContent className="p-0">
             <div className="relative h-64 bg-gradient-to-br from-blue-50 to-green-50 rounded-lg overflow-hidden">
-              <div className="absolute inset-0 bg-[url('/placeholder.svg?height=256&width=400')] bg-cover bg-center opacity-20"></div>
+              <div className="absolute inset-0 bg-[url('/placeholder.svg?height=256&width=400')] bg-cover bg-center opacity-20" />
 
               {/* User Location */}
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <div className="w-4 h-4 bg-primary rounded-full border-2 border-white shadow-lg animate-pulse"></div>
+                <div className="w-4 h-4 bg-primary rounded-full border-2 border-white shadow-lg animate-pulse" />
                 <span className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs font-medium text-primary">
                   You
                 </span>
@@ -116,10 +204,22 @@ export default function MapPage() {
                     ) : (
                       <Radio className="h-4 w-4 text-primary" />
                     )}
-                    <span className="font-medium text-foreground">{sensor.id}</span>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-foreground">{sensor.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ID: {sensor.id} • {sensor.location}
+                      </span>
+                    </div>
                   </div>
-                  <Badge style={{ backgroundColor: getStatusColor(sensor.status) }} className="text-white">
-                    AQI {sensor.aqi}
+                  <Badge
+                    style={{ backgroundColor: getStatusColor(sensor.status) }}
+                    className="text-white"
+                  >
+                    AQI{" "}
+                    {(() => {
+                      const lr = getLatestReadingForSensor(sensor.id)
+                      return lr?.aqi ?? sensor.aqi
+                    })()}
                   </Badge>
                 </div>
 
@@ -157,6 +257,15 @@ export default function MapPage() {
                       </div>
                       <div>
                         NO₂: <span className="font-medium">{sensor.pollutants.NO2} μg/m³</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">AQI (latest):</span>
+                        <span className="ml-1 font-medium">
+                          {(() => {
+                            const lr = getLatestReadingForSensor(sensor.id)
+                            return lr?.aqi ?? sensor.aqi
+                          })()}
+                        </span>
                       </div>
                     </div>
                   </div>
