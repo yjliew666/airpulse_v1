@@ -25,8 +25,9 @@ function AnalyticsContent() {
 
   // All devices from backend (via /api/sensors?resource=devices)
   const [devices, setDevices] = useState<
-    { id: string; name: string; location: string; sensor_type: "mobile" | "static"; created_at: string }[]
-  >([])
+  { id: number; name: string; location: string; sensor_type: "mobile" | "static"; created_at: string }[]
+>([])
+
 
   useEffect(() => {
     const fetchDevices = async () => {
@@ -48,51 +49,52 @@ function AnalyticsContent() {
 
   // Map devices + their latest reading into the Sensor shape used by analytics components
   const sensors: Sensor[] = useMemo(() => {
-    return devices.map((device) => {
-      // 🔍 all readings for this device_id
-      const deviceReadings = readings.filter((r) => String(r.device_id) === device.id)
+  return devices.map((device) => {
+    const deviceId = String(device.id) // 👈 normalize to string
 
-      const latestReading =
-        deviceReadings.length > 0
-          ? deviceReadings.reduce((latest, r) =>
-              new Date(r.created_at) > new Date(latest.created_at) ? r : latest,
-            deviceReadings[0])
-          : null
+    const deviceReadings = readings.filter((r) => String(r.device_id) === deviceId)
 
-      const pm25 = latestReading?.pm25 ?? 0
-      const co = latestReading?.co ?? 0
-      const voc = latestReading?.voc ?? 0
+    const latestReading =
+      deviceReadings.length > 0
+        ? deviceReadings.reduce((latest, r) =>
+            new Date(r.created_at) > new Date(latest.created_at) ? r : latest,
+          deviceReadings[0])
+        : null
 
-      // Prefer the AQI value computed/stored in the readings table
-      const aqiValue = latestReading?.aqi ?? pm25 ?? 0
+    const pm25 = latestReading?.pm25 ?? 0
+    const co = latestReading?.co ?? 0
+    const voc = latestReading?.voc ?? 0
 
-      let status: Sensor["status"] = "Good"
-      if (aqiValue > 100) status = "Unhealthy"
-      else if (aqiValue > 50) status = "Moderate"
+    const aqiValue = latestReading?.aqi ?? pm25 ?? 0
 
-      return {
-        id: device.id,
-        type: device.sensor_type,
-        name: device.name,
-        location: device.location,
-        lat: 0,
-        lng: 0,
-        aqi: aqiValue,
-        status,
-        lastUpdate: latestReading ? new Date(latestReading.created_at).toLocaleTimeString() : "No data",
-        isConnected: !!latestReading,
-        pollutants: {
-          SO2: 0,
-          PM10: 0,
-          PM25: pm25,
-          O3: 0,
-          NO2: 0,
-          CO: co,
-          VOC: voc,
-        },
-      }
-    })
-  }, [devices, readings])
+    let status: Sensor["status"] = "Good"
+    if (aqiValue > 100) status = "Unhealthy"
+    else if (aqiValue > 50) status = "Moderate"
+
+    return {
+      id: deviceId,                // 👈 string id for Sensor
+      type: device.sensor_type,
+      name: device.name,
+      location: device.location,
+      lat: 0,
+      lng: 0,
+      aqi: aqiValue,
+      status,
+      lastUpdate: latestReading ? new Date(latestReading.created_at).toLocaleTimeString() : "No data",
+      isConnected: !!latestReading,
+      pollutants: {
+        SO2: 0,
+        PM10: 0,
+        PM25: pm25,
+        O3: 0,
+        NO2: 0,
+        CO: co,
+        VOC: voc,
+      },
+    }
+  })
+}, [devices, readings])
+
 
   const [sensorType, setSensorType] = useState<"static" | "mobile">("static")
   const [selectedSensorId, setSelectedSensorId] = useState<string>("")
