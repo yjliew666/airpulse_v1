@@ -3,22 +3,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Wind } from "lucide-react"
-import { useEffect, useState } from "react"
-
-interface AQIData {
-  value: number
-  status: string
-  color: string
-  location: string
-}
+import { useEffect } from "react"
+import { useAQIData } from "@/lib/use-aqi-data"
 
 export function AQICard() {
-  const [aqiData, setAqiData] = useState<AQIData>({
-    value: 42,
-    status: "Good",
-    color: "bg-accent",
-    location: "Downtown Sensor #1",
-  })
+  const { aqiData, updateAQI } = useAQIData()
 
   useEffect(() => {
     // Simulate real-time AQI updates
@@ -35,7 +24,7 @@ export function AQICard() {
         color = "bg-warning"
       }
 
-      setAqiData({
+      updateAQI({
         value,
         status,
         color,
@@ -44,7 +33,7 @@ export function AQICard() {
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [updateAQI])
 
   return (
     <Card className="shadow-soft">

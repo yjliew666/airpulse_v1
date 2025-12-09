@@ -2,8 +2,9 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Heart, AlertTriangle, CheckCircle, XCircle } from "lucide-react"
-import { useEffect, useState } from "react"
+import { Heart, AlertTriangle, CheckCircle, XCircle, Clock } from "lucide-react"
+import { useAQIData } from "@/lib/use-aqi-data"
+import { useMemo } from "react"
 
 interface Recommendation {
   riskLevel: "Low" | "Mid" | "High"
@@ -11,56 +12,97 @@ interface Recommendation {
   donts: string[]
   activities: string[]
   protectiveActions: string[]
+  advisedExposureTime: string
 }
 
 export function RecommendationsCard() {
-  const [recommendation, setRecommendation] = useState<Recommendation>({
-    riskLevel: "Low",
-    dos: ["Continue outdoor activities", "Keep windows open for ventilation", "Take regular walks"],
-    donts: ["Don't worry about air quality today", "No need for masks outdoors"],
-    activities: ["Jogging", "Cycling", "Outdoor sports"],
-    protectiveActions: ["Stay hydrated", "Monitor air quality updates"],
-  })
+  const { aqiData } = useAQIData()
 
-  useEffect(() => {
-    // Simulate AI-based recommendations based on user profile and AQI
-    const interval = setInterval(() => {
-      const riskLevels: ("Low" | "Mid" | "High")[] = ["Low", "Mid", "High"]
-      const newRisk = riskLevels[Math.floor(Math.random() * 3)]
+  const recommendation = useMemo<Recommendation>(() => {
+    const aqi = aqiData.value
 
-      let newRecommendation: Recommendation
-
-      if (newRisk === "High") {
-        newRecommendation = {
-          riskLevel: "High",
-          dos: ["Stay indoors as much as possible", "Use air purifiers", "Keep windows closed"],
-          donts: ["Avoid outdoor exercise", "Don't open windows", "Avoid prolonged outdoor exposure"],
-          activities: ["Indoor yoga", "Home workouts", "Reading"],
-          protectiveActions: ["Wear N95 masks outdoors", "Use inhaler if prescribed", "Monitor symptoms"],
-        }
-      } else if (newRisk === "Mid") {
-        newRecommendation = {
-          riskLevel: "Mid",
-          dos: ["Limit outdoor activities", "Wear masks during commute", "Check AQI regularly"],
-          donts: ["Avoid intense outdoor exercise", "Don't ignore respiratory symptoms"],
-          activities: ["Light walking", "Indoor activities", "Short outdoor tasks"],
-          protectiveActions: ["Carry rescue inhaler", "Stay hydrated", "Monitor breathing"],
-        }
-      } else {
-        newRecommendation = {
-          riskLevel: "Low",
-          dos: ["Enjoy outdoor activities", "Keep windows open", "Take regular walks"],
-          donts: ["Don't worry about air quality", "No need for masks"],
-          activities: ["Jogging", "Cycling", "Outdoor sports"],
-          protectiveActions: ["Stay hydrated", "Monitor updates"],
-        }
+    // Good (0-50)
+    if (aqi <= 50) {
+      return {
+        riskLevel: "Low",
+        dos: ["Continue outdoor activities", "Keep windows open for ventilation", "Take regular walks"],
+        donts: ["Don't worry about air quality today", "No need for masks outdoors"],
+        activities: ["Jogging", "Cycling", "Outdoor sports", "Picnics"],
+        protectiveActions: ["Stay hydrated", "Monitor air quality updates"],
+        advisedExposureTime: "Unlimited outdoor time with normal precautions",
       }
-
-      setRecommendation(newRecommendation)
-    }, 12000)
-
-    return () => clearInterval(interval)
-  }, [])
+    }
+    // Moderate (51-100)
+    else if (aqi <= 100) {
+      return {
+        riskLevel: "Mid",
+        dos: [
+          "Reduce prolonged outdoor exertion",
+          "Take breaks during outdoor activities",
+          "Monitor symptoms if sensitive",
+          "Keep inhaler accessible",
+        ],
+        donts: [
+          "Don't exercise near busy roads",
+          "Avoid outdoor activities during peak hours",
+          "Don't ignore respiratory symptoms",
+        ],
+        activities: ["Light walking", "Indoor cycling", "Yoga", "Swimming (indoor)"],
+        protectiveActions: [
+          "Consider wearing mask during cycling",
+          "Close windows during peak hours",
+          "Use air purifier indoors",
+        ],
+        advisedExposureTime: "Limit to 2-3 hours of moderate outdoor activity",
+      }
+    }
+    // Unhealthy (101-150)
+    else if (aqi <= 150) {
+      return {
+        riskLevel: "High",
+        dos: [
+          "Stay indoors as much as possible",
+          "Use air purifier at home",
+          "Keep inhaler nearby at all times",
+          "Monitor symptoms closely",
+        ],
+        donts: [
+          "Avoid all outdoor exercise",
+          "Don't open windows",
+          "Avoid cycling outdoors",
+          "Don't ignore any breathing difficulties",
+        ],
+        activities: ["Indoor exercises", "Stretching", "Light yoga (indoor)", "Reading"],
+        protectiveActions: [
+          "Wear N95 mask if going outside",
+          "Keep all windows closed",
+          "Use HEPA air purifier",
+          "Have emergency inhaler ready",
+        ],
+        advisedExposureTime: "Minimize outdoor exposure - max 30 minutes with mask",
+      }
+    }
+    // Very Unhealthy (151+)
+    else {
+      return {
+        riskLevel: "High",
+        dos: ["Stay indoors with air purifier running", "Keep emergency contacts ready", "Monitor health continuously"],
+        donts: [
+          "Do not go outside unless absolutely necessary",
+          "Avoid any physical exertion",
+          "Don't open windows or doors",
+        ],
+        activities: ["Rest", "Light indoor activities only", "Meditation"],
+        protectiveActions: [
+          "Use N95/P100 mask if must go outside",
+          "Seal windows and doors",
+          "Run air purifier continuously",
+          "Contact doctor if symptoms worsen",
+        ],
+        advisedExposureTime: "Avoid outdoor exposure - stay indoors",
+      }
+    }
+  }, [aqiData.value])
 
   const getRiskColor = (risk: string) => {
     switch (risk) {
@@ -91,6 +133,14 @@ export function RecommendationsCard() {
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Risk Level:</span>
           <Badge className={getRiskColor(recommendation.riskLevel)}>{recommendation.riskLevel}</Badge>
+        </div>
+
+        <div className="p-3 bg-secondary/10 rounded-lg border border-secondary/20">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock className="h-4 w-4 text-secondary" />
+            <h4 className="font-medium text-sm text-foreground">Advised Exposure Time</h4>
+          </div>
+          <p className="text-sm text-foreground font-medium">{recommendation.advisedExposureTime}</p>
         </div>
 
         <div className="space-y-3">
